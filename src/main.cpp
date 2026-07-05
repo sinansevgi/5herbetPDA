@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include "driver/gpio.h"
 #include <M5Cardputer.h>
 #include <SD.h>
 #include <SPI.h>
@@ -476,6 +477,13 @@ void drawFallbackDashboard() {
 // =============================================================
 void setup() {
     Serial.begin(115200);
+
+    // Reset pins 39 (MISO) and 40 (SCLK) to disable JTAG functionality and reclaim them as standard GPIOs.
+    // This is critical because GPIO 3 is the display Reset pin, which is also an ESP32-S3 strapping pin.
+    // If GPIO 3 is LOW/floating at boot (e.g. during a software reset from a launcher), the ESP32-S3 
+    // hardware JTAG block will automatically route external JTAG to GPIO 39-42, disabling SPI on them.
+    gpio_reset_pin((gpio_num_t)39);
+    gpio_reset_pin((gpio_num_t)40);
 
     // Disable SD CS (GPIO 12) and external display CS (GPIO 5) immediately on startup
     // to prevent SPI bus contention. This is crucial when the app is booted from

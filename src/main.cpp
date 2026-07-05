@@ -484,7 +484,13 @@ void setup() {
     digitalWrite(12, HIGH);
     pinMode(5, OUTPUT);
     digitalWrite(5, HIGH);
-    delay(50); // Let the pins stabilize
+
+    // Hardware reset the external display to ensure it starts in a clean state
+    pinMode(3, OUTPUT);
+    digitalWrite(3, LOW);
+    delay(50);
+    digitalWrite(3, HIGH);
+    delay(100);
 
     auto cfg = M5.config();
     M5Cardputer.begin(cfg, true);
@@ -496,6 +502,16 @@ void setup() {
     delay(800);
 
     SPI.begin(40, 39, 14, 12);
+
+    // Send 80 dummy clock cycles (10 bytes of 0xFF) at a safe 400 kHz
+    // with both CS lines held HIGH. This forces the SD card's internal SPI
+    // state machine to reset and release the MISO line (GPIO 39), resolving
+    // bus contention caused by M5Launcher's boot sequence.
+    SPI.beginTransaction(SPISettings(400000, MSBFIRST, SPI_MODE0));
+    for (int i = 0; i < 10; i++) {
+        SPI.transfer(0xFF);
+    }
+    SPI.endTransaction();
     
     uint32_t id = 0;
     for (int i = 0; i < 5; i++) {

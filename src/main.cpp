@@ -494,51 +494,24 @@ void setup() {
     M5Cardputer.Power.setExtOutput(true);
     delay(100); // Wait for the power rail to stabilize
 
-    // Hardware reset the external display to ensure it starts in a clean state now that it is powered
-    pinMode(3, OUTPUT);
-    digitalWrite(3, LOW);
-    delay(50);
-    digitalWrite(3, HIGH);
-    delay(100);
-
-    intSprite.setColorDepth(8);
-    intSprite.createSprite(240, 135);
-
-    delay(800);
-
-    SPI.begin(40, 39, 14, 12);
+    // Initialize SPI bus with no default SS pin (passed -1) to prevent the hardware
+    // controller from driving GPIO 12 during general SPI operations.
+    SPI.begin(40, 39, 14, -1);
 
     // Send 80 dummy clock cycles (10 bytes of 0xFF) at a safe 400 kHz
     // with both CS lines held HIGH. This forces the SD card's internal SPI
     // state machine to reset and release the MISO line (GPIO 39), resolving
-    // bus contention caused by M5Launcher's boot sequence.
+    // bus contention caused by M5Launcher's boot sequence before SD.begin is run.
     SPI.beginTransaction(SPISettings(400000, MSBFIRST, SPI_MODE0));
     for (int i = 0; i < 10; i++) {
         SPI.transfer(0xFF);
     }
     SPI.endTransaction();
-    
-    uint32_t id = 0;
-    for (int i = 0; i < 5; i++) {
-        externalDisplay.init();
-        id = externalDisplay.getDisplayId();
-        if (id != 0 && id != 0xFFFFFFFF) {
-            break;
-        }
-        delay(200);
-    }
 
-    if (id == 0 || id == 0xFFFFFFFF) {
-        appContext.extScreenConnected = false;
-        Serial.println("External screen not detected.");
-    } else {
-        appContext.extScreenConnected = true;
-        externalDisplay.setRotation(5);
-        externalDisplay.fillScreen(0x0000);
-        extSprite.setColorDepth(8);
-        extSprite.createSprite(320, 240);
-    }
-
+    // Initialize the SD card first to reset its SPI state machine and gracefully deselect it.
+    // By running SD.begin before detecting the screen, the official SD library completes
+    // the card initialization protocol, which automatically exits any active state
+    // and holds CS (GPIO 12) HIGH.
     if (SD.begin(12, SPI, 40000000)) {
         appContext.sdAvailable = true;
         if (!SD.exists("/5herbetPDA"))       SD.mkdir("/5herbetPDA");
@@ -565,12 +538,45 @@ void setup() {
         appContext.showNotification("SD card ready");
     } else {
         appContext.sdAvailable = false;
-        // SD card failed or is absent. Ensure CS pin is pulled HIGH so it doesn't float
-        // and interfere with external display SPI communication.
+        // SD card failed or is absent. Ensure CS pin is pulled HIGH so it doesn't float.
         pinMode(12, OUTPUT);
         digitalWrite(12, HIGH);
         loadThemes();
         appContext.showNotification("No SD card");
+    }
+
+    // Hardware reset the external display to ensure it starts in a clean state now that it has power
+    pinMode(3, OUTPUT);
+    digitalWrite(3, LOW);
+    delay(50);
+    digitalWrite(3, HIGH);
+    delay(100);
+
+    intSprite.setColorDepth(8);
+    intSprite.createSprite(240, 135);
+
+    delay(800);
+
+    // Detect the external screen now that the SD card is cleanly deselected
+    uint32_t id = 0;
+    for (int i = 0; i < 5; i++) {
+        externalDisplay.init();
+        id = externalDisplay.getDisplayId();
+        if (id != 0 && id != 0xFFFFFFFF) {
+            break;
+        }
+        delay(200);
+    }
+
+    if (id == 0 || id == 0xFFFFFFFF) {
+        appContext.extScreenConnected = false;
+        Serial.println("External screen not detected.");
+    } else {
+        appContext.extScreenConnected = true;
+        externalDisplay.setRotation(5);
+        externalDisplay.fillScreen(0x0000);
+        extSprite.setColorDepth(8);
+        extSprite.createSprite(320, 240);
     }
 
     appContext.epochBase = 0;

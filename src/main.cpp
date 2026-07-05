@@ -676,7 +676,7 @@ void loop() {
 
     // Power management
     bool sleepTriggered = isSleeping || (appContext.sleepTimeoutMins > 0 && idleTime > (unsigned long)appContext.sleepTimeoutMins * 60000UL);
-    if (M5Cardputer.BtnA.wasPressed()) {
+    if (millis() > 2000 && M5Cardputer.BtnA.wasPressed()) {
         if (isSleeping) {
             // Wake up handled below
         } else if (isScreenOff) {
@@ -698,18 +698,15 @@ void loop() {
                 if (appContext.extScreenConnected) externalDisplay.sleep();
                 isScreenOff = true;
             }
+            M5Cardputer.Speaker.end(); // Stop speaker to prevent sleeping noise!
         }
         
         esp_sleep_enable_timer_wakeup(500000);
         esp_light_sleep_start();
         M5Cardputer.update();
         if (M5Cardputer.Keyboard.isPressed() || M5Cardputer.BtnA.isPressed()) {
-            if (M5Cardputer.BtnA.isPressed()) {
-                while (M5Cardputer.BtnA.isPressed()) {
-                    M5Cardputer.update();
-                    delay(10);
-                }
-            }
+            M5Cardputer.Speaker.begin(); // Reinitialize speaker!
+            SysAudio.init();             // Restore volume settings!
             lastInputTime = millis();
             isSleeping = false;
         } else return;

@@ -101,7 +101,7 @@ public:
     uint32_t getDisplayId() { return panel.readCommand(0x04, 0, 4); }
     LGFX_ILI9341() {
         auto b = bus.config();
-        b.spi_host = SPI2_HOST; b.spi_mode = 0;
+        b.spi_host = SPI3_HOST; b.spi_mode = 0;
         b.freq_write = 20000000; b.freq_read = 6000000;
         b.spi_3wire = false; b.use_lock = true;
         b.dma_channel = SPI_DMA_CH_AUTO;
@@ -123,6 +123,7 @@ public:
 // GLOBAL OBJECTS
 // =============================================================
 LGFX_ILI9341 externalDisplay;
+SPIClass sdSPI(HSPI);
 M5Canvas extSprite(&externalDisplay);
 M5Canvas intSprite(&M5Cardputer.Display);
 
@@ -502,25 +503,25 @@ void setup() {
     M5Cardputer.Power.setExtOutput(true);
     delay(100); // Wait for the power rail to stabilize
 
-    // Initialize SPI bus with no default SS pin (passed -1) to prevent the hardware
+    // Initialize SPI bus on SPI3_HOST (HSPI) with no default SS pin (passed -1) to prevent the hardware
     // controller from driving GPIO 12 during general SPI operations.
-    SPI.begin(40, 39, 14, -1);
+    sdSPI.begin(40, 39, 14, -1);
 
     // Send 80 dummy clock cycles (10 bytes of 0xFF) at a safe 400 kHz
     // with both CS lines held HIGH. This forces the SD card's internal SPI
     // state machine to reset and release the MISO line (GPIO 39), resolving
     // bus contention caused by M5Launcher's boot sequence before SD.begin is run.
-    SPI.beginTransaction(SPISettings(400000, MSBFIRST, SPI_MODE0));
+    sdSPI.beginTransaction(SPISettings(400000, MSBFIRST, SPI_MODE0));
     for (int i = 0; i < 10; i++) {
-        SPI.transfer(0xFF);
+        sdSPI.transfer(0xFF);
     }
-    SPI.endTransaction();
+    sdSPI.endTransaction();
 
     // Initialize the SD card first to reset its SPI state machine and gracefully deselect it.
     // By running SD.begin before detecting the screen, the official SD library completes
     // the card initialization protocol, which automatically exits any active state
     // and holds CS (GPIO 12) HIGH.
-    if (SD.begin(12, SPI, 40000000)) {
+    if (SD.begin(12, sdSPI, 40000000)) {
         Serial.println("SD Card initialized successfully!");
         appContext.sdAvailable = true;
         if (!SD.exists("/5herbetPDA"))       SD.mkdir("/5herbetPDA");

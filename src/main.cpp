@@ -485,16 +485,21 @@ void setup() {
     pinMode(5, OUTPUT);
     digitalWrite(5, HIGH);
 
-    // Hardware reset the external display to ensure it starts in a clean state
+    auto cfg = M5.config();
+    M5Cardputer.begin(cfg, true);
+    M5Cardputer.Display.setRotation(1);
+
+    // Explicitly enable external 5V power output to power the external screen.
+    // M5Launcher typically disables external output to save power, leaving the screen unpowered.
+    M5Cardputer.Power.setExtOutput(true);
+    delay(100); // Wait for the power rail to stabilize
+
+    // Hardware reset the external display to ensure it starts in a clean state now that it is powered
     pinMode(3, OUTPUT);
     digitalWrite(3, LOW);
     delay(50);
     digitalWrite(3, HIGH);
     delay(100);
-
-    auto cfg = M5.config();
-    M5Cardputer.begin(cfg, true);
-    M5Cardputer.Display.setRotation(1);
 
     intSprite.setColorDepth(8);
     intSprite.createSprite(240, 135);

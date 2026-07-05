@@ -102,16 +102,17 @@ public:
     LGFX_ILI9341() {
         auto b = bus.config();
         b.spi_host = SPI3_HOST; b.spi_mode = 0;
-        b.freq_write = 20000000; b.freq_read = 6000000;
-        b.spi_3wire = false; b.use_lock = true;
-        b.dma_channel = SPI_DMA_CH_AUTO;
-        b.pin_sclk = 40; b.pin_mosi = 14; b.pin_miso = 39; b.pin_dc = 6;
+        b.freq_write = 40000000; b.freq_read = 16000000;
+        b.spi_3wire = true; b.use_lock = true;
+        b.dma_channel = 1;
+        b.pin_sclk = 40; b.pin_mosi = 14; b.pin_miso = -1; b.pin_dc = 6;
         bus.config(b);
         panel.setBus(&bus);
 
         auto p = panel.config();
         p.pin_cs = 5; p.pin_rst = 3; p.pin_busy = -1;
-        p.readable = true; p.invert = false; p.rgb_order = false;
+        p.readable = false; p.invert = false; p.rgb_order = false;
+        p.bus_shared = true;
         p.memory_width = 240; p.memory_height = 320;
         p.panel_width = 240; p.panel_height = 320;
         panel.config(p);
@@ -568,21 +569,28 @@ void setup() {
 
     delay(800);
 
-    // Detect the external screen now that the SD card is cleanly deselected
-    uint32_t id = 0;
+    // Initialize external display
+    bool displayOk = false;
     for (int i = 0; i < 5; i++) {
-        externalDisplay.init();
-        id = externalDisplay.getDisplayId();
-        Serial.printf("[INIT] Attempt %d: Display ID read = 0x%08X\n", i + 1, id);
-        if (id != 0 && id != 0xFFFFFFFF) {
+        if (externalDisplay.init()) {
+            displayOk = true;
             break;
         }
         delay(200);
     }
 
-    if (id == 0 || id == 0xFFFFFFFF) {
+    // Force fallback mode ONLY if the user holds down the StampS3 button (BtnA) at boot
+    bool forcedFallback = false;
+    M5Cardputer.update();
+    if (M5Cardputer.BtnA.isPressed()) {
+        displayOk = false;
+        forcedFallback = true;
+        Serial.println("Fallback mode forced by user (BtnA pressed on boot).");
+    }
+
+    if (!displayOk) {
         appContext.extScreenConnected = false;
-        Serial.printf("External screen not detected (Final ID: 0x%08X)\n", id);
+        Serial.println("External screen not detected or disabled.");
     } else {
         appContext.extScreenConnected = true;
         externalDisplay.setRotation(5);
@@ -636,12 +644,9 @@ void setup() {
                 break;
             }
             
-            if (millis() - lastCheck > 1000) {
+            if (!forcedFallback && millis() - lastCheck > 1000) {
                 lastCheck = millis();
-                externalDisplay.init();
-                uint32_t id = externalDisplay.getDisplayId();
-                Serial.printf("[LOOP] Display ID read = 0x%08X\n", id);
-                if (id != 0 && id != 0xFFFFFFFF) {
+                if (externalDisplay.init()) {
                     appContext.extScreenConnected = true;
                     externalDisplay.setRotation(5);
                     externalDisplay.fillScreen(0x0000);

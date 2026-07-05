@@ -476,6 +476,16 @@ void drawFallbackDashboard() {
 // =============================================================
 void setup() {
     Serial.begin(115200);
+
+    // Disable SD CS (GPIO 12) and external display CS (GPIO 5) immediately on startup
+    // to prevent SPI bus contention. This is crucial when the app is booted from
+    // a launcher like M5Launcher, which leaves the SD card in an active/selected state.
+    pinMode(12, OUTPUT);
+    digitalWrite(12, HIGH);
+    pinMode(5, OUTPUT);
+    digitalWrite(5, HIGH);
+    delay(50); // Let the pins stabilize
+
     auto cfg = M5.config();
     M5Cardputer.begin(cfg, true);
     M5Cardputer.Display.setRotation(1);
@@ -534,6 +544,10 @@ void setup() {
         appContext.showNotification("SD card ready");
     } else {
         appContext.sdAvailable = false;
+        // SD card failed or is absent. Ensure CS pin is pulled HIGH so it doesn't float
+        // and interfere with external display SPI communication.
+        pinMode(12, OUTPUT);
+        digitalWrite(12, HIGH);
         loadThemes();
         appContext.showNotification("No SD card");
     }

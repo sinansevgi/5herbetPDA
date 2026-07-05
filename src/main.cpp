@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <new>
 #include "driver/gpio.h"
 #include <M5Cardputer.h>
 #include <SD.h>
@@ -564,6 +565,8 @@ void setup() {
     digitalWrite(3, HIGH);
     delay(100);
 
+    intSprite.deleteSprite();
+    new (&intSprite) M5Canvas(&M5Cardputer.Display);
     intSprite.setColorDepth(8);
     intSprite.createSprite(240, 135);
 

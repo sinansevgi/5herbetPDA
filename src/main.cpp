@@ -102,7 +102,7 @@ public:
     LGFX_ILI9341() {
         auto b = bus.config();
         b.spi_host = SPI2_HOST; b.spi_mode = 0;
-        b.freq_write = 40000000; b.freq_read = 16000000;
+        b.freq_write = 20000000; b.freq_read = 6000000;
         b.spi_3wire = false; b.use_lock = true;
         b.dma_channel = SPI_DMA_CH_AUTO;
         b.pin_sclk = 40; b.pin_mosi = 14; b.pin_miso = 39; b.pin_dc = 6;
@@ -521,6 +521,7 @@ void setup() {
     // the card initialization protocol, which automatically exits any active state
     // and holds CS (GPIO 12) HIGH.
     if (SD.begin(12, SPI, 40000000)) {
+        Serial.println("SD Card initialized successfully!");
         appContext.sdAvailable = true;
         if (!SD.exists("/5herbetPDA"))       SD.mkdir("/5herbetPDA");
         if (!SD.exists("/5herbetPDA/Notes")) SD.mkdir("/5herbetPDA/Notes");
@@ -545,6 +546,7 @@ void setup() {
         
         appContext.showNotification("SD card ready");
     } else {
+        Serial.println("SD Card initialization FAILED!");
         appContext.sdAvailable = false;
         // SD card failed or is absent. Ensure CS pin is pulled HIGH so it doesn't float.
         pinMode(12, OUTPUT);
@@ -570,6 +572,7 @@ void setup() {
     for (int i = 0; i < 5; i++) {
         externalDisplay.init();
         id = externalDisplay.getDisplayId();
+        Serial.printf("[INIT] Attempt %d: Display ID read = 0x%08X\n", i + 1, id);
         if (id != 0 && id != 0xFFFFFFFF) {
             break;
         }
@@ -578,7 +581,7 @@ void setup() {
 
     if (id == 0 || id == 0xFFFFFFFF) {
         appContext.extScreenConnected = false;
-        Serial.println("External screen not detected.");
+        Serial.printf("External screen not detected (Final ID: 0x%08X)\n", id);
     } else {
         appContext.extScreenConnected = true;
         externalDisplay.setRotation(5);
@@ -636,6 +639,7 @@ void setup() {
                 lastCheck = millis();
                 externalDisplay.init();
                 uint32_t id = externalDisplay.getDisplayId();
+                Serial.printf("[LOOP] Display ID read = 0x%08X\n", id);
                 if (id != 0 && id != 0xFFFFFFFF) {
                     appContext.extScreenConnected = true;
                     externalDisplay.setRotation(5);

@@ -25,7 +25,7 @@ private:
     
     int scrollOffset = 0;
     const int maxCharsPerLine = 48; // (320 - 20) / 6 = 50, use 48 to leave margin for scrollbar
-    const int maxVisibleLines = 14; // y=60 to y=210 is 150px, each char is 8px high with line spacing (10px total)
+    const int maxVisibleLines = 13; // y=70 to y=213 is 143px, leaves a safe gap before footer
     const int lineH = 11;
 
     void performSearch(AppContext* ctx) {
@@ -246,7 +246,7 @@ public:
         }
 
         // Footer hint
-        UI::drawFooter(s, th, "Type: A-Z  [ENT] Search  [DEL] Backspace  [; / .] Scroll  [ESC] Exit");
+        UI::drawFooter(s, th, "A-Z:Type  ENT:Find  DEL:BS  ;/.:Scroll  ESC:Exit");
     }
 
     void drawStatus(AppContext* ctx) override {

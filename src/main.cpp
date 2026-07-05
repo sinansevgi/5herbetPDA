@@ -675,17 +675,41 @@ void loop() {
     unsigned long idleTime = currentMillis - lastInputTime;
 
     // Power management
-    if (appContext.sleepTimeoutMins > 0 && idleTime > (unsigned long)appContext.sleepTimeoutMins * 60000UL) {
+    bool sleepTriggered = isSleeping || (appContext.sleepTimeoutMins > 0 && idleTime > (unsigned long)appContext.sleepTimeoutMins * 60000UL);
+    if (M5Cardputer.BtnA.wasPressed()) {
+        if (isSleeping) {
+            // Wake up handled below
+        } else if (isScreenOff) {
+            // Just wake screen up
+            lastInputTime = millis();
+        } else {
+            // Force sleep
+            sleepTriggered = true;
+        }
+    }
+
+    if (sleepTriggered) {
         if (!isSleeping) {
             SysAudio.play(appContext.theme->interactionStyle, SoundEvent::SHUTDOWN);
             for (int i=0; i<40; i++) { SysAudio.update(); delay(10); } // Wait for sound
             isSleeping = true;
+            if (!isScreenOff) {
+                M5Cardputer.Display.sleep();
+                if (appContext.extScreenConnected) externalDisplay.sleep();
+                isScreenOff = true;
+            }
         }
         
         esp_sleep_enable_timer_wakeup(500000);
         esp_light_sleep_start();
         M5Cardputer.update();
-        if (M5Cardputer.Keyboard.isPressed()) {
+        if (M5Cardputer.Keyboard.isPressed() || M5Cardputer.BtnA.isPressed()) {
+            if (M5Cardputer.BtnA.isPressed()) {
+                while (M5Cardputer.BtnA.isPressed()) {
+                    M5Cardputer.update();
+                    delay(10);
+                }
+            }
             lastInputTime = millis();
             isSleeping = false;
         } else return;

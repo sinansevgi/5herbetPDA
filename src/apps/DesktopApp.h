@@ -494,7 +494,7 @@ public:
         s.setTextColor(th.textFaint);
         s.setTextSize(1);
         s.setCursor(280, 230);
-        s.print("FW 1.2");
+        s.print("FW 1.3");
     }
 
     void drawStatus(AppContext* ctx) override {

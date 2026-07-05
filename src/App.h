@@ -178,6 +178,7 @@ namespace UI {
     // Startup Animation
     template <typename T1, typename T2>
     inline void drawStartupAnimation(T1& ext, T2& in, const Theme& th) {
+        if (!ext.getBuffer() || !in.getBuffer()) return;
         ext.fillScreen(th.bg);
         in.fillScreen(th.bg);
         ext.pushSprite(0, 0);

@@ -40,7 +40,7 @@ To hook up the external ILI9341 SPI display, connect the display to the 14-pin 2
 > [!CAUTION]
 > **HARDWARE SAFETY WARNING: LED/BLK Pin**
 > Standard ESP32-S3 GPIO pins can only safely supply ~40mA. An ILI9341 backlight can draw 60mA–100mA. 
-> **Before connecting the LED pin to G15**, you MUST check the back of your display PCB. If you see a small transistor (often labeled `J3Y` or `Q1`) near the pins, it is 100% safe to connect directly to the GPIO. If there is **no transistor**, connecting it directly to G15 will eventually burn out your Cardputer. You must use an external NPN transistor or MOSFET if your display lacks one!
+> **Before connecting the LED pin to G15**, you MUST check the back of your display PCB. If you see a small transistor (often labeled `J3Y` or `Q1`) near the pins, it should be safe to connect directly to the GPIO. If there is **no transistor**, connecting it directly to G15 may draw too much current and could damage your Cardputer. You should use an external NPN transistor or MOSFET if your display lacks one.
 
 > [!NOTE]
 > **Hall Effect Sensor (Lid Sleep)**

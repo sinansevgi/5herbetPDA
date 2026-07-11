@@ -14,7 +14,7 @@ private:
     int getNumItemsForTab(int tab) {
         switch(tab) {
             case 0: return 3; // SSID, Pass, Save
-            case 1: return 6; // Screen, Sleep, TZ, Vol, User, Save
+            case 1: return 7; // Screen, Sleep, TZ, Vol, Brightness, User, Save
             case 2: return 2; // Theme, Save
         }
         return 0;
@@ -30,8 +30,9 @@ private:
             if (idx == 1) return "Sleep Timeout";
             if (idx == 2) return "Timezone (UTC)";
             if (idx == 3) return "Volume %";
-            if (idx == 4) return "User Name";
-            if (idx == 5) return "Save & Apply";
+            if (idx == 4) return "Brightness %";
+            if (idx == 5) return "User Name";
+            if (idx == 6) return "Save & Apply";
         } else if (tab == 2) {
             if (idx == 0) return "UI Theme";
             if (idx == 1) return "Save & Apply";
@@ -48,7 +49,8 @@ private:
             if (idx == 1) return String(ctx->sleepTimeoutMins) + " min";
             if (idx == 2) return (ctx->timezoneOffsetHours >= 0 ? "+" : "") + String(ctx->timezoneOffsetHours) + " h";
             if (idx == 3) return String(SysAudio.getVolume() * 100 / 255) + " %";
-            if (idx == 4) return ctx->userName;
+            if (idx == 4) return String(ctx->screenBrightness * 100 / 255) + " %";
+            if (idx == 5) return ctx->userName;
         } else if (tab == 2) {
             if (idx == 0) return ctx->theme->name;
         }
@@ -57,7 +59,7 @@ private:
 
     bool isTextField(int tab, int idx) {
         if (tab == 0 && (idx == 0 || idx == 1)) return true;
-        if (tab == 1 && idx == 4) return true;
+        if (tab == 1 && idx == 5) return true;
         return false;
     }
 
@@ -79,6 +81,7 @@ private:
         f.print("USERNAME="); f.println(ctx->userName);
         f.print("THEME="); f.println(ctx->themeIndex);
         f.print("VOL="); f.println(SysAudio.getVolume() * 100 / 255);
+        f.print("BRIGHTNESS="); f.println(ctx->screenBrightness);
         f.close();
         ctx->showNotification("Settings saved");
     }
@@ -256,7 +259,7 @@ public:
             }
             is.setCursor(115, 48); is.print("FN");
 
-        } else if (currentTabIdx == 1 && selectedIndex >= 0 && selectedIndex < 4) { // Dials
+        } else if (currentTabIdx == 1 && selectedIndex >= 0 && selectedIndex < 5) { // Dials
             is.setTextColor(th.textFaint);
             is.setTextSize(1);
             is.setCursor(10, 10);
@@ -274,6 +277,7 @@ public:
             if (selectedIndex == 1) fill = map(min(60, ctx->sleepTimeoutMins), 1, 60, 0, w);
             if (selectedIndex == 2) fill = map(ctx->timezoneOffsetHours, -12, 14, 0, w);
             if (selectedIndex == 3) fill = map(SysAudio.getVolume(), 0, 255, 0, w);
+            if (selectedIndex == 4) fill = map(ctx->screenBrightness, 0, 255, 0, w);
             is.fillRect(10, 70, fill, 20, th.accent);
 
         } else if (currentTabIdx == 2 && selectedIndex >= 0) { // Theme Palette
@@ -310,7 +314,7 @@ public:
                 SysAudio.play(ctx->theme->interactionStyle, SoundEvent::CONFIRM);
                 if (currentTabIdx == 0 && selectedIndex == 0) ctx->wifiSSID = editBuffer;
                 if (currentTabIdx == 0 && selectedIndex == 1) ctx->wifiPass = editBuffer;
-                if (currentTabIdx == 1 && selectedIndex == 4) ctx->userName = editBuffer.length() > 0 ? editBuffer : "STRANGER";
+                if (currentTabIdx == 1 && selectedIndex == 5) ctx->userName = editBuffer.length() > 0 ? editBuffer : "STRANGER";
                 editBuffer = "";
             } else if (key == 27) { // ESC
                 isEditing = false;
@@ -350,7 +354,7 @@ public:
                 currentTabIdx = (currentTabIdx + dir + 3) % 3;
             } else {
                 bool isAdjustable = false;
-                if (currentTabIdx == 1 && selectedIndex < 4) isAdjustable = true;
+                if (currentTabIdx == 1 && selectedIndex < 5) isAdjustable = true;
                 if (currentTabIdx == 2 && selectedIndex == 0) isAdjustable = true;
 
                 if (isAdjustable) {
@@ -361,6 +365,11 @@ public:
                         else if (selectedIndex == 3) {
                             int v = (SysAudio.getVolume() * 100 / 255) + dir * 5;
                             SysAudio.setVolume(max(0, min(255, v * 255 / 100)));
+                        }
+                        else if (selectedIndex == 4) {
+                            ctx->screenBrightness = max(0, min(255, ctx->screenBrightness + dir * 10));
+                            ctx->setExtBrightness(ctx->screenBrightness);
+                            M5Cardputer.Display.setBrightness(ctx->screenBrightness);
                         }
                     } else if (currentTabIdx == 2) {
                         if (selectedIndex == 0) {
@@ -385,7 +394,7 @@ public:
                     isEditing = true;
                     if (currentTabIdx == 0 && selectedIndex == 0) editBuffer = ctx->wifiSSID;
                     if (currentTabIdx == 0 && selectedIndex == 1) editBuffer = ctx->wifiPass;
-                    if (currentTabIdx == 1 && selectedIndex == 4) editBuffer = ctx->userName;
+                    if (currentTabIdx == 1 && selectedIndex == 5) editBuffer = ctx->userName;
                 }
             }
         }

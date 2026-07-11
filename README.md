@@ -25,7 +25,7 @@ This project's display pinout is exactly identical to the popular [AndyAiCardput
 To hook up the external ILI9341 SPI display, connect the display to the 14-pin 2.54mm expansion header on the back of the **Cardputer ADV** using the mapping below:
 
 ### Pinout Configuration Table
-| ILI9341 Pin | EXT Header Pin (Cardputer ADV) | GPIO | Description / Notes |
+| ILI9341 Pin / Component | EXT Header Pin (Cardputer ADV) | GPIO | Description / Notes |
 | :--- | :--- | :--- | :--- |
 | **VCC** | PIN 15 | - | 3.3V Power |
 | **GND** | PIN 11 | - | Ground |
@@ -34,9 +34,17 @@ To hook up the external ILI9341 SPI display, connect the display to the 14-pin 2
 | **DC / RS** | PIN 5 | G6 | Data / Command |
 | **SDI / MOSI** | PIN 9 | G14 | SPI Data In |
 | **SCK / CLK** | PIN 7 | G40 | SPI Clock |
-| **LED / BLK** | PIN 15 | - | Backlight Power (Connect directly to VCC) |
+| **LED / BLK** | - | G15 | **WARNING:** Adjustable Backlight. See safety note below! |
+| **Hall Effect Sensor** | - | G13 | A3212EUA-T Data Pin for magnetic lid sleep |
 
-Ensure you adjust your wiring to match this table or edit the pin definitions in `src/main.cpp` before compiling.
+> [!CAUTION]
+> **HARDWARE SAFETY WARNING: LED/BLK Pin**
+> Standard ESP32-S3 GPIO pins can only safely supply ~40mA. An ILI9341 backlight can draw 60mA–100mA. 
+> **Before connecting the LED pin to G15**, you MUST check the back of your display PCB. If you see a small transistor (often labeled `J3Y` or `Q1`) near the pins, it is 100% safe to connect directly to the GPIO. If there is **no transistor**, connecting it directly to G15 will eventually burn out your Cardputer. You must use an external NPN transistor or MOSFET if your display lacks one!
+
+> [!NOTE]
+> **Hall Effect Sensor (Lid Sleep)**
+> You can connect a Hall Effect sensor (like the A3212EUA-T) to magnetically detect when the PDA "lid" is closed, automatically sleeping the device. Connect the Sensor's `VCC` to 3.3V, `GND` to GND, and the `DATA` pin to **G13** on the expansion header.
 
 ---
 

@@ -22,6 +22,9 @@
 #include <ArduinoJson.h>
 #include "AudioSystem.h"
 
+#define TFT_LED_PIN 15 // Connect external display LED/BLK pin to this GPIO pin (e.g., GPIO 15) to support software sleep
+#define HALL_SENSOR_PIN 13 // G13 on Cardputer ADV expansion header for A3212EUA-T Hall Sensor
+
 AudioSystem SysAudio;
 std::vector<Theme> ALL_THEMES;
 const Theme THEME_FALLBACK = { "LCD Cream", InteractionStyle::ORGANIZER, 0xF7BC, 0xF7BC, 0xDF5A, 0xE73C, 0x2BEC, 0x6B4D, 0x2BEC, 0x0000, 0x528A, 0x9CF3, 0x4208, 0x2C8C, 0x1C44, 0xC000, 0xC618, 0xAD75 };
@@ -98,6 +101,7 @@ protected:
 class LGFX_ILI9341 : public lgfx::v1::LGFX_Device {
     Panel_ILI9341_Local panel;
     lgfx::v1::Bus_SPI   bus;
+    lgfx::v1::Light_PWM light;
 public:
     uint32_t getDisplayId() { return panel.readCommand(0x04, 0, 4); }
     LGFX_ILI9341() {
@@ -117,6 +121,17 @@ public:
         p.memory_width = 240; p.memory_height = 320;
         p.panel_width = 240; p.panel_height = 320;
         panel.config(p);
+
+        #if defined(TFT_LED_PIN) && TFT_LED_PIN >= 0
+        auto l = light.config();
+        l.pin_bl = TFT_LED_PIN;
+        l.invert = false;
+        l.freq   = 12000;           // 12kHz PWM frequency
+        l.pwm_channel = 7;          // Free LEDC channel
+        light.config(l);
+        panel.setLight(&light);
+        #endif
+
         setPanel(&panel);
     }
 };
@@ -130,6 +145,7 @@ M5Canvas extSprite(&externalDisplay);
 M5Canvas intSprite(&M5Cardputer.Display);
 
 AppContext appContext;
+void AppContext::setExtBrightness(int b) { externalDisplay.setBrightness(b); }
 App* currentAppInstance = nullptr;
 
 unsigned long lastInputTime = 0;
@@ -226,6 +242,11 @@ void loadSettings() {
         else if (key == "USERNAME") appContext.userName = val;
         else if (key == "THEME")    appContext.setTheme(val.toInt());
         else if (key == "VOL")      SysAudio.setVolume(val.toInt() * 255 / 100);
+        else if (key == "BRIGHTNESS") {
+            appContext.screenBrightness = val.toInt();
+            appContext.setExtBrightness(appContext.screenBrightness);
+            M5Cardputer.Display.setBrightness(appContext.screenBrightness);
+        }
     }
     f.close();
 }
@@ -481,6 +502,8 @@ void drawFallbackDashboard() {
 void setup() {
     Serial.begin(115200);
 
+    pinMode(HALL_SENSOR_PIN, INPUT_PULLUP);
+
     // Reset pins 39 (MISO) and 40 (SCLK) to disable JTAG functionality and reclaim them as standard GPIOs.
     // This is critical because GPIO 3 is the display Reset pin, which is also an ESP32-S3 strapping pin.
     // If GPIO 3 is LOW/floating at boot (e.g. during a software reset from a launcher), the ESP32-S3 
@@ -499,6 +522,8 @@ void setup() {
     auto cfg = M5.config();
     M5Cardputer.begin(cfg, true);
     M5Cardputer.Display.setRotation(1);
+
+    // Backlight is handled by lgfx::Light_PWM internally
 
     // Explicitly enable external 5V power output to power the external screen.
     // M5Launcher typically disables external output to save power, leaving the screen unpowered.
@@ -677,8 +702,12 @@ void loop() {
     unsigned long currentMillis = millis();
     unsigned long idleTime = currentMillis - lastInputTime;
 
+    static bool wasLidClosed = false;
+    bool lidClosed = (digitalRead(HALL_SENSOR_PIN) == LOW);
+    if (lidClosed) wasLidClosed = true;
+
     // Power management
-    bool sleepTriggered = isSleeping || (appContext.sleepTimeoutMins > 0 && idleTime > (unsigned long)appContext.sleepTimeoutMins * 60000UL);
+    bool sleepTriggered = isSleeping || lidClosed || (appContext.sleepTimeoutMins > 0 && idleTime > (unsigned long)appContext.sleepTimeoutMins * 60000UL);
     if (millis() > 2000 && M5Cardputer.BtnA.wasPressed()) {
         if (isSleeping) {
             // Wake up handled below
@@ -698,7 +727,11 @@ void loop() {
             isSleeping = true;
             if (!isScreenOff) {
                 M5Cardputer.Display.sleep();
-                if (appContext.extScreenConnected) externalDisplay.sleep();
+                if (appContext.extScreenConnected) {
+                    externalDisplay.sleep();
+                    M5Cardputer.Power.setExtOutput(false);
+                    // Backlight turns off automatically via externalDisplay.sleep()
+                }
                 isScreenOff = true;
             }
             M5Cardputer.Speaker.end(); // Stop speaker to prevent sleeping noise!
@@ -707,24 +740,55 @@ void loop() {
         esp_sleep_enable_timer_wakeup(500000);
         esp_light_sleep_start();
         M5Cardputer.update();
-        if (M5Cardputer.Keyboard.isPressed() || M5Cardputer.BtnA.isPressed()) {
+        
+        bool currentLidClosed = (digitalRead(HALL_SENSOR_PIN) == LOW);
+        
+        if (!currentLidClosed && wasLidClosed) {
+            wasLidClosed = false; // Reset tracker
             M5Cardputer.Speaker.begin(); // Reinitialize speaker!
             SysAudio.init();             // Restore volume settings!
             lastInputTime = millis();
             isSleeping = false;
-        } else return;
+        } else if (!currentLidClosed && (M5Cardputer.Keyboard.isPressed() || M5Cardputer.BtnA.isPressed())) {
+            M5Cardputer.Speaker.begin();
+            SysAudio.init();
+            lastInputTime = millis();
+            isSleeping = false;
+        } else {
+            return;
+        }
     }
     if (appContext.screenTimeoutMins > 0 && idleTime > (unsigned long)appContext.screenTimeoutMins * 60000UL) {
         if (!isScreenOff) {
             M5Cardputer.Display.sleep();
-            if (appContext.extScreenConnected) externalDisplay.sleep();
+            if (appContext.extScreenConnected) {
+                externalDisplay.sleep();
+                M5Cardputer.Power.setExtOutput(false);
+                // Backlight turns off automatically via externalDisplay.sleep()
+            }
             isScreenOff = true;
         }
     } else if (isScreenOff) {
         M5Cardputer.Display.wakeup();
         M5Cardputer.Display.setBrightness(128);
         if (appContext.extScreenConnected) {
-            externalDisplay.wakeup();
+            M5Cardputer.Power.setExtOutput(true);
+            // Backlight turns on automatically via externalDisplay.init() or wakeup()
+            delay(100);
+            
+            // Hardware reset external display to guarantee clean restart
+            pinMode(3, OUTPUT);
+            digitalWrite(3, LOW);
+            delay(50);
+            digitalWrite(3, HIGH);
+            delay(100);
+
+            externalDisplay.init();
+            externalDisplay.setRotation(5);
+            externalDisplay.fillScreen(0x0000);
+            if (currentAppInstance) {
+                currentAppInstance->draw(&appContext);
+            }
         }
         isScreenOff = false;
     }

@@ -365,6 +365,7 @@ struct AppContext {
     // Power settings
     int screenTimeoutMins = 5;
     int sleepTimeoutMins = 10;
+    int screenBrightness = 128; // 0-255
 
     // Time / timezone
     int timezoneOffsetHours = 0;
@@ -401,6 +402,8 @@ struct AppContext {
         nextApp = app;
         nextAppArgs = args;
     }
+
+    void setExtBrightness(int b);
 
     // Buffer-based time functions — no heap allocation
     void getTime(char* out, size_t len) const {
